@@ -2,22 +2,22 @@ import dash
 from dash import dcc, html, Input, Output
 import plotly.graph_objects as go
 import pandas as pd
- 
+
 # ─── Dados ────────────────────────────────────────────────────────────────────
 df = pd.read_parquet("processed/fato_pagamento.parquet")
 df["dt_vencimento"] = pd.to_datetime(df["dt_vencimento"], errors="coerce")
 df["ano"] = df["dt_vencimento"].dt.year.astype("Int64")
 df["mes_num"] = df["dt_vencimento"].dt.month
- 
+
 MESES_PT = {
     1: "Janeiro", 2: "Fevereiro", 3: "Março",    4: "Abril",
     5: "Maio",    6: "Junho",    7: "Julho",      8: "Agosto",
     9: "Setembro",10: "Outubro", 11: "Novembro",  12: "Dezembro",
 }
 df["mes_nome"] = df["mes_num"].map(MESES_PT)
- 
+
 TURMAS = sorted(df["turma"].dropna().unique().tolist())
- 
+
 # ─── Paleta ───────────────────────────────────────────────────────────────────
 BG       = "#0d1f1a"
 SURFACE  = "#142920"
@@ -29,8 +29,8 @@ AMBER    = "#f5c842"
 RED      = "#e05252"
 TEXT     = "#d4ede5"
 MUTED    = "#6b8f7e"
- 
- 
+
+
 # ─── Layout base para gráficos (fundo escuro explícito) ───────────────────────
 def base_layout(legend=False):
     layout = dict(
@@ -65,8 +65,8 @@ def base_layout(legend=False):
             x=1.0, y=0.5, xanchor="left",
         )
     return layout
- 
- 
+
+
 # ─── Formatação ───────────────────────────────────────────────────────────────
 def fmt_mil(v):
     if v >= 1_000_000:
@@ -74,8 +74,8 @@ def fmt_mil(v):
     if v >= 1_000:
         return f"{v/1_000:.2f} Mil".replace(".", ",")
     return f"{v:.2f}".replace(".", ",")
- 
- 
+
+
 # ─── Filtro ───────────────────────────────────────────────────────────────────
 def apply_filter(ano, turma):
     d = df.copy()
@@ -84,8 +84,8 @@ def apply_filter(ano, turma):
     if turma and turma != "todos":
         d = d[d["turma"] == turma]
     return d
- 
- 
+
+
 # ─── Componentes ─────────────────────────────────────────────────────────────
 def kpi_card(title, value, subtitle=None):
     children = [
@@ -113,14 +113,15 @@ def kpi_card(title, value, subtitle=None):
         "flex": "1",
         "minWidth": "0",
     })
- 
- 
-def chart_card(chart_id, height=270):
+
+
+def chart_card(chart_id, height=None):
+    graph_style = {"height": f"{height}px"} if height else {"height": "100%", "minHeight": "220px"}
     return html.Div([
         dcc.Graph(
             id=chart_id,
             config={"displayModeBar": False},
-            style={"height": f"{height}px"},
+            style=graph_style,
         ),
     ], style={
         "background": SURFACE,
@@ -129,9 +130,11 @@ def chart_card(chart_id, height=270):
         "overflow": "hidden",
         "flex": "1",
         "minWidth": "0",
+        "display": "flex",
+        "flexDirection": "column",
     })
- 
- 
+
+
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 def make_sidebar(active="dashboard"):
     DD = {
@@ -143,16 +146,6 @@ def make_sidebar(active="dashboard"):
         "fontSize": "13px",
     }
     return html.Div([
-        html.Div([
-            html.Span("◈ ", style={"color": GREEN, "fontSize": "18px"}),
-            html.Span("INADIMPL", style={
-                "fontFamily": "monospace", "fontWeight": "700",
-                "fontSize": "13px", "letterSpacing": "0.15em", "color": TEXT,
-            }),
-        ], style={"display": "flex", "alignItems": "center", "marginBottom": "20px"}),
- 
-        html.Hr(style={"borderColor": BORDER, "margin": "0 0 20px 0"}),
- 
         html.Div([
             html.P("Ano", style={
                 "fontFamily": "monospace", "fontSize": "12px", "fontWeight": "600",
@@ -169,7 +162,7 @@ def make_sidebar(active="dashboard"):
                 value="todos", clearable=False, style=DD,
             ),
         ], style={"marginBottom": "20px"}),
- 
+
         html.Div([
             html.P("Turma", style={
                 "fontFamily": "monospace", "fontSize": "12px", "fontWeight": "600",
@@ -182,9 +175,9 @@ def make_sidebar(active="dashboard"):
                 value="todos", clearable=False, style=DD,
             ),
         ], style={"marginBottom": "24px"}),
- 
+
         html.Hr(style={"borderColor": BORDER, "margin": "0 0 16px 0"}),
- 
+
         html.A("● Dashboard", href="/", style={
             "display": "block", "fontFamily": "monospace", "fontSize": "12px",
             "fontWeight": "600",
@@ -203,12 +196,13 @@ def make_sidebar(active="dashboard"):
             "borderLeft": f"2px solid {GREEN}" if active == "simulacao" else "2px solid transparent",
         }),
     ], style={
-        "width": "185px", "minWidth": "185px", "minHeight": "100vh",
+        "width": "185px", "minWidth": "185px", "height": "100%",
         "background": "#0a1914", "borderRight": f"1px solid {BORDER}",
         "padding": "24px 16px", "boxSizing": "border-box",
+        "overflowY": "auto",
     })
- 
- 
+
+
 # ─── Páginas ──────────────────────────────────────────────────────────────────
 def dashboard_page():
     return html.Div([
@@ -238,28 +232,31 @@ def dashboard_page():
                 "alignItems": "flex-end", "paddingBottom": "18px",
                 "borderBottom": f"1px solid {BORDER}", "marginBottom": "18px",
             }),
- 
+
             # KPIs
             html.Div(id="kpi-row", style={"display": "flex", "gap": "10px", "marginBottom": "14px"}),
- 
+
             # Gráficos linha 1
             html.Div([
                 chart_card("chart-mes"),
                 chart_card("chart-evolucao"),
                 chart_card("chart-turma"),
-            ], style={"display": "flex", "gap": "10px", "marginBottom": "10px"}),
- 
+            ], style={"display": "flex", "gap": "10px", "marginBottom": "10px", "flex": "1", "minHeight": "0"}),
+
             # Gráficos linha 2
             html.Div([
                 chart_card("chart-relacao"),
                 chart_card("chart-alunos"),
                 chart_card("chart-turno"),
-            ], style={"display": "flex", "gap": "10px"}),
- 
-        ], style={"flex": "1", "padding": "24px 28px", "minWidth": "0", "overflowX": "hidden"}),
-    ], style={"display": "flex", "minHeight": "100vh", "background": BG})
- 
- 
+            ], style={"display": "flex", "gap": "10px", "flex": "1", "minHeight": "0"}),
+
+        ], style={
+            "flex": "1", "padding": "24px 28px", "minWidth": "0", "overflowX": "hidden",
+            "display": "flex", "flexDirection": "column",
+        }),
+    ], style={"display": "flex", "height": "100vh", "background": BG, "overflow": "hidden"})
+
+
 def simulation_page():
     return html.Div([
         html.Div([
@@ -283,7 +280,7 @@ def simulation_page():
                 "alignItems": "center", "paddingBottom": "18px",
                 "borderBottom": f"1px solid {BORDER}", "marginBottom": "18px",
             }),
- 
+
             # Slider
             html.Div([
                 html.Div([
@@ -311,25 +308,25 @@ def simulation_page():
                 "background": SURFACE, "border": f"1px solid {BORDER}",
                 "borderRadius": "8px", "padding": "20px 24px", "marginBottom": "14px",
             }),
- 
+
             # KPIs simulação
             html.Div(id="sim-kpi-row", style={"display": "flex", "gap": "10px", "marginBottom": "14px"}),
- 
+
             # Gráficos 2 colunas
             html.Div([
                 chart_card("sim-chart-mes",     height=300),
                 chart_card("sim-chart-evolucao", height=300),
             ], style={"display": "flex", "gap": "10px", "marginBottom": "10px"}),
- 
+
             html.Div([
                 chart_card("sim-chart-turma",  height=300),
                 chart_card("sim-chart-alunos", height=300),
             ], style={"display": "flex", "gap": "10px"}),
- 
+
         ], style={"flex": "1", "padding": "24px 28px", "minWidth": "0"}),
     ], style={"display": "flex", "minHeight": "100vh", "background": BG})
- 
- 
+
+
 # ─── App root ─────────────────────────────────────────────────────────────────
 app = dash.Dash(
     __name__,
@@ -337,21 +334,21 @@ app = dash.Dash(
 )
 app.title = "Dashboard Inadimplência"
 server = app.server
- 
+
 app.layout = html.Div([
     dcc.Location(id="url", refresh=False),
-    html.Div(id="page-content"),
-], style={"background": BG, "minHeight": "100vh"})
- 
- 
+    html.Div(id="page-content", style={"height": "100vh", "overflow": "hidden"}),
+], style={"background": BG, "height": "100vh", "overflow": "hidden"})
+
+
 # ─── Roteamento ───────────────────────────────────────────────────────────────
 @app.callback(Output("page-content", "children"), Input("url", "pathname"))
 def render_page(pathname):
     if pathname and "/simulacao" in pathname:
         return simulation_page()
     return dashboard_page()
- 
- 
+
+
 # ─── Callbacks Dashboard ──────────────────────────────────────────────────────
 @app.callback(
     Output("kpi-row",        "children"),
@@ -368,14 +365,14 @@ def update_dashboard(ano, turma):
     d       = apply_filter(ano, turma)
     inadimp = d[d["status"] == "Pendente"]
     pago    = d[d["status"] == "Pago"]
- 
+
     # KPIs
     total_inadimp = inadimp["valor_atual"].sum()
     ticket_medio  = inadimp.groupby("matricula")["valor_atual"].sum().mean() if len(inadimp) else 0
     arrecadado    = pago["vlr_pago"].sum()
     taxa          = len(inadimp) / len(d) * 100 if len(d) else 0
     mes_pior      = inadimp.groupby("mes_nome")["valor_atual"].sum().idxmax() if len(inadimp) else "—"
- 
+
     kpis = [
         kpi_card("Total Inadimplência",    fmt_mil(total_inadimp)),
         kpi_card("Ticket Médio",           fmt_mil(ticket_medio) if ticket_medio else "—"),
@@ -383,7 +380,7 @@ def update_dashboard(ano, turma):
         kpi_card("Valor Arrecadado",       fmt_mil(arrecadado)),
         kpi_card("Mês Maior Inadimplente", mes_pior),
     ]
- 
+
     # Chart 1 — Inadimplência por Mês (barra H)
     mes_df = (
         inadimp.groupby(["mes_num", "mes_nome"])["valor_atual"]
@@ -400,7 +397,7 @@ def update_dashboard(ano, turma):
         hovertemplate="%{y}: R$ %{x:,.0f}<extra></extra>",
     ))
     fig_mes.update_layout(**l1)
- 
+
     # Chart 2 — Evolução (linha + área)
     evo_df = inadimp.groupby("ano")["valor_atual"].sum().reset_index()
     evo_df["ano"] = evo_df["ano"].astype(str)
@@ -417,7 +414,7 @@ def update_dashboard(ano, turma):
         hovertemplate="%{x}: R$ %{y:,.0f}<extra></extra>",
     ))
     fig_evo.update_layout(**l2)
- 
+
     # Chart 3 — Por Turma (barra V)
     turma_df = (
         inadimp.groupby("turma")["valor_atual"]
@@ -439,7 +436,7 @@ def update_dashboard(ano, turma):
     ))
     fig_turma.update_layout(**l3)
     fig_turma.update_xaxes(tickfont=dict(size=9))
- 
+
     # Chart 4 — Pie pago/pendente
     rel = d.groupby("status")["matricula"].count().reset_index()
     rel.columns = ["status", "qtd"]
@@ -454,7 +451,7 @@ def update_dashboard(ano, turma):
         hovertemplate="%{label}: %{value}<extra></extra>",
     ))
     fig_rel.update_layout(**l4)
- 
+
     # Chart 5 — Alunos inadimplentes (barra H)
     alunos_df = (
         inadimp.groupby("matricula")["valor_atual"]
@@ -472,7 +469,7 @@ def update_dashboard(ano, turma):
         hovertemplate="Aluno %{y}: R$ %{x:,.0f}<extra></extra>",
     ))
     fig_alunos.update_layout(**l5)
- 
+
     # Chart 6 — Donut turno
     turno_df = inadimp.groupby("turno")["valor_atual"].sum().reset_index()
     l6 = base_layout(legend=True)
@@ -486,10 +483,10 @@ def update_dashboard(ano, turma):
         hovertemplate="%{label}: R$ %{value:,.0f}<extra></extra>",
     ))
     fig_turno.update_layout(**l6)
- 
+
     return kpis, fig_mes, fig_evo, fig_turma, fig_rel, fig_alunos, fig_turno
- 
- 
+
+
 # ─── Callbacks Simulação ──────────────────────────────────────────────────────
 BASE_MES    = [("Julho",18000),("Outubro",25000),("Setembro",32000),("Dezembro",122000)]
 BASE_EVO    = [("2023",20000),("2024",95000),("2025",197000)]
@@ -497,8 +494,8 @@ BASE_TURMA  = [("1º Ano",22000),("2º Ano",18000),("Inf. II(B)",15000),("4º An
 BASE_ALUNOS = [("820",7440),("982",6200),("805",5800),("882",4880),("903",4880),
                ("1033",4680),("981",4680),("698",4600),("969",4600),("132",4600)]
 BASE_TOT = 197220; BASE_TKT = 512.25; BASE_ARR = 16740
- 
- 
+
+
 @app.callback(
     Output("sim-pct-label",     "children"),
     Output("sim-kpi-row",       "children"),
@@ -511,13 +508,13 @@ BASE_TOT = 197220; BASE_TKT = 512.25; BASE_ARR = 16740
 def update_simulation(factor):
     factor = factor or 100
     m = factor / 100
- 
+
     kpis = [
         kpi_card("Total Inadimplência", fmt_mil(BASE_TOT * m), f"Fator: {factor}%"),
         kpi_card("Ticket Médio",        fmt_mil(BASE_TKT * m)),
         kpi_card("Valor Arrecadado",    fmt_mil(BASE_ARR * m)),
     ]
- 
+
     # Mês
     mes_s = sorted(BASE_MES, key=lambda x: x[1])
     lm = base_layout()
@@ -531,7 +528,7 @@ def update_simulation(factor):
         hovertemplate="%{y}: R$ %{x:,.0f}<extra></extra>",
     ))
     fig_mes.update_layout(**lm)
- 
+
     # Evolução
     le = base_layout()
     le["title"]["text"] = "Evolução Inadimplência"
@@ -546,7 +543,7 @@ def update_simulation(factor):
         hovertemplate="%{x}: R$ %{y:,.0f}<extra></extra>",
     ))
     fig_evo.update_layout(**le)
- 
+
     # Turma
     turma_s = sorted(BASE_TURMA, key=lambda x: x[1], reverse=True)
     vals_t = [round(v*m) for _,v in turma_s]
@@ -561,7 +558,7 @@ def update_simulation(factor):
         hovertemplate="%{x}: R$ %{y:,.0f}<extra></extra>",
     ))
     fig_turma.update_layout(**lt)
- 
+
     # Alunos
     alunos_s = sorted(BASE_ALUNOS, key=lambda x: x[1])
     la = base_layout()
@@ -575,9 +572,9 @@ def update_simulation(factor):
         hovertemplate="Aluno %{y}: R$ %{x:,.0f}<extra></extra>",
     ))
     fig_alunos.update_layout(**la)
- 
+
     return f"{factor}%", kpis, fig_mes, fig_evo, fig_turma, fig_alunos
- 
- 
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=8050)
+    app.run(debug=False, port=8050)
